@@ -26,6 +26,8 @@ export interface PlayerStats {
   goals: number;
   assists: number;
   avgRating: number;
+  cleanSheets: number;
+  saves: number;
 }
 
 export interface Player {
@@ -126,6 +128,13 @@ export interface MatchResult {
   awayScore: number;
   events: MatchEvent[];
   summary: string;
+  tacticalAnalysis: string;
+  manOfTheMatch: { name: string, reason: string };
+  stats: {
+    possession: [number, number];
+    shots: [number, number];
+    passAccuracy: [number, number];
+  };
   revenue: number;
   playerRatings: Record<string, number>;
 }

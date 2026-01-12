@@ -30,7 +30,7 @@ const generatePlayer = (id: string, name: string, pos: Position, rating: number)
   salary: rating * 1200, 
   contractYears: 1 + Math.floor(Math.random() * 4),
   matchHistory: [],
-  stats: { appearances: 0, goals: 0, assists: 0, avgRating: 0 }
+  stats: { appearances: 0, goals: 0, assists: 0, avgRating: 0, cleanSheets: 0, saves: 0 }
 });
 
 export const INITIAL_SQUAD: Player[] = [

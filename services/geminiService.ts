@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { MatchResult, Team, Player, Position } from "../types";
 
-// Always use named parameter for apiKey
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export async function simulateMatchWithAI(
@@ -24,21 +23,15 @@ export async function simulateMatchWithAI(
   - Focus: ${myTeam.tactics.focus}
   - Core Player Roles: ${playerRolesDesc}
   
-  EVENT FREQUENCY & LOGIC:
-  1. DYNAMIC EVENTS: Return a realistic sequence of 18-24 events.
-  2. NEW EVENT TYPES: 
-     - 'SAVE': Describe spectacular dives or crucial 1v1 stops. These MUST boost the involved GK's rating.
-     - 'SHOT_OFF_TARGET': Describe narrowly missed screamers or frustrating misses under pressure.
-     - 'FOUL': Describe tactical trips, heavy challenges, or professional fouls.
-     - 'WOODWORK': High-drama moments where the ball rattles the post/bar.
-  3. ROLE INTEGRATION: Commentary must mention how roles impact these events (e.g., "The No-Nonsense Defender lunges into a FOUL to prevent a breakaway" or "The Sweeper Keeper makes a massive SAVE outside the box").
-  4. PERFORMANCE RATINGS: Assign matchRatings (4.0-10.0). 
-     - GKs with multiple SAVES should get 8.5+. 
-     - Players committing multiple FOULS or misses should see rating penalties.
+  RETURN STRUCTURED ANALYSIS:
+  1. DYNAMIC EVENTS: Return 18-24 realistic events.
+  2. TACTICAL ANALYSIS: A 3-sentence deep dive into why the result happened (e.g., "The midfield diamond struggled against the opponent's wing play").
+  3. MAN OF THE MATCH: Identify the star performer and why.
+  4. MATCH STATS: Realistic numbers for Possession (sum=100), Shots, and Pass Accuracy.
+  5. RATINGS: Assign matchRatings (4.0-10.0) for every player in the Starting XI.
   
   Return the results in the specified JSON format.`;
 
-  // Using gemini-3-flash-preview for high-speed complex text tasks
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
@@ -49,10 +42,27 @@ export async function simulateMatchWithAI(
         properties: {
           homeScore: { type: Type.INTEGER },
           awayScore: { type: Type.INTEGER },
-          summary: { type: Type.STRING, description: "Detailed narrative of tactical successes and failures." },
+          summary: { type: Type.STRING },
+          tacticalAnalysis: { type: Type.STRING },
+          manOfTheMatch: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              reason: { type: Type.STRING }
+            },
+            required: ['name', 'reason']
+          },
+          stats: {
+            type: Type.OBJECT,
+            properties: {
+              possession: { type: Type.ARRAY, items: { type: Type.INTEGER } },
+              shots: { type: Type.ARRAY, items: { type: Type.INTEGER } },
+              passAccuracy: { type: Type.ARRAY, items: { type: Type.INTEGER } }
+            },
+            required: ['possession', 'shots', 'passAccuracy']
+          },
           playerRatings: {
             type: Type.OBJECT,
-            description: "Map of Player ID to performance rating",
             additionalProperties: { type: Type.NUMBER }
           },
           events: {
@@ -70,12 +80,11 @@ export async function simulateMatchWithAI(
             }
           }
         },
-        required: ['homeScore', 'awayScore', 'summary', 'events', 'playerRatings']
+        required: ['homeScore', 'awayScore', 'summary', 'tacticalAnalysis', 'manOfTheMatch', 'stats', 'events', 'playerRatings']
       }
     }
   });
 
-  // Access .text property directly (not a function call)
   const textContent = response.text || "{}";
   const data = JSON.parse(textContent);
   const attendance = myTeam.stadium.capacity * (0.8 + Math.random() * 0.2);
@@ -87,6 +96,9 @@ export async function simulateMatchWithAI(
     homeScore: data.homeScore,
     awayScore: data.awayScore,
     summary: data.summary,
+    tacticalAnalysis: data.tacticalAnalysis,
+    manOfTheMatch: data.manOfTheMatch,
+    stats: data.stats,
     revenue: revenue,
     playerRatings: data.playerRatings,
     events: data.events.map((e: any) => ({
@@ -102,7 +114,6 @@ export async function getScoutReport(player: Player): Promise<string> {
     model: "gemini-3-flash-preview",
     contents: prompt
   });
-  // Access .text property directly
   return response.text || "No report available.";
 }
 
@@ -143,7 +154,6 @@ export async function generateTransferMarket(averageRating: number): Promise<Pla
     }
   });
 
-  // Access .text property directly
   const textContent = response.text || "[]";
   const playersData = JSON.parse(textContent);
   return playersData.map((p: any) => ({
@@ -158,7 +168,7 @@ export async function generateTransferMarket(averageRating: number): Promise<Pla
     salary: p.rating * 1000,
     contractYears: 3,
     matchHistory: [],
-    stats: { appearances: 0, goals: 0, assists: 0, avgRating: 0 }
+    stats: { appearances: 0, goals: 0, assists: 0, avgRating: 0, cleanSheets: 0, saves: 0 }
   }));
 }
 
@@ -200,7 +210,6 @@ export async function generateAcademyProspect(academyLevel: number): Promise<Pla
     }
   });
 
-  // Access .text property directly
   const textContent = response.text || "{}";
   const data = JSON.parse(textContent);
   return {
@@ -216,6 +225,6 @@ export async function generateAcademyProspect(academyLevel: number): Promise<Pla
     salary: 500,
     contractYears: 5,
     matchHistory: [],
-    stats: { appearances: 0, goals: 0, assists: 0, avgRating: 0 }
+    stats: { appearances: 0, goals: 0, assists: 0, avgRating: 0, cleanSheets: 0, saves: 0 }
   };
 }
