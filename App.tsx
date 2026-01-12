@@ -8,18 +8,35 @@ import { simulateMatchWithAI, generateAcademyProspect, generateTransferMarket } 
 const STORAGE_KEY = 'gemini_fm_save_v5';
 const SEASON_LENGTH = 38; 
 
+// Generate profiles for all clubs based on the OPPONENTS list
+const ALL_CLUB_PROFILES = OPPONENTS.map((name, index) => {
+  const isTier1 = index < 17;
+  return {
+    name,
+    tier: (isTier1 ? 1 : 2) as LeagueTier,
+    budget: isTier1 ? (80000000 + Math.random() * 70000000) : (10000000 + Math.random() * 40000000),
+    capacity: isTier1 ? (40000 + Math.floor(Math.random() * 40000)) : (15000 + Math.floor(Math.random() * 20000)),
+    color: name.toLowerCase().includes('blue') ? 'bg-sky-500' : 
+           name.toLowerCase().includes('red') ? 'bg-rose-600' :
+           name.toLowerCase().includes('white') ? 'bg-slate-200' :
+           name.toLowerCase().includes('black') ? 'bg-slate-800' :
+           name.toLowerCase().includes('green') ? 'bg-emerald-600' : 'bg-blue-600',
+    desc: isTier1 ? 'A top-flight giant with massive expectations.' : 'A determined climber fighting for the top spot.'
+  };
+});
+
 const INITIAL_LEAGUE: LeagueTeam[] = [
   ...OPPONENTS.slice(0, 17).map(name => ({ name, tier: 1 as LeagueTier, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, points: 0 })),
   ...OPPONENTS.slice(17).map(name => ({ name, tier: 2 as LeagueTier, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, points: 0 }))
 ];
 
-const INITIAL_OBJECTIVES: Objective[] = [
-  { id: '1', title: 'Season Target', description: 'Reach the boards performance goals.', target: 4, current: 0, reward: 15000000, completed: false, type: 'WINS' },
-  { id: '2', title: 'Financial Stability', description: 'Avoid FFP sanctions.', target: 0, current: 0, reward: 5000000, completed: false, type: 'STADIUM_EXPANSION' }
-];
-
 const App: React.FC = () => {
   const [isStarted, setIsStarted] = useState(false);
+  const [setupStep, setSetupStep] = useState<'club' | 'manager'>('club');
+  const [selectedClubProfile, setSelectedClubProfile] = useState<typeof ALL_CLUB_PROFILES[0] | null>(null);
+  const [managerName, setManagerName] = useState('');
+  const [selectionTierFilter, setSelectionTierFilter] = useState<LeagueTier>(1);
+  
   const [leagueStandings, setLeagueStandings] = useState<LeagueTeam[]>(INITIAL_LEAGUE);
   const [isRecruiting, setIsRecruiting] = useState(false);
   const [marketPlayers, setMarketPlayers] = useState<Player[]>([]);
@@ -35,7 +52,7 @@ const App: React.FC = () => {
     academyLevel: 1,
     tier: 2,
     matchday: 0,
-    stadium: { name: 'Gemini Arena', capacity: 25000, facilityLevel: 1, aestheticLevel: 1 },
+    stadium: { name: 'The Arena', capacity: 25000, facilityLevel: 1, aestheticLevel: 1 },
     tactics: { 
       formation: '4-3-3', 
       mentality: 'Balanced', 
@@ -43,7 +60,7 @@ const App: React.FC = () => {
       roleAssignments: {},
       startingXI: INITIAL_SQUAD.slice(0, 11).map(p => p.id) 
     },
-    objectives: INITIAL_OBJECTIVES,
+    objectives: [],
     jobSecurity: 80,
     managerSalary: 50000,
     managerContractYears: 3,
@@ -78,6 +95,45 @@ const App: React.FC = () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ team, leagueStandings }));
     }
   }, [team, leagueStandings, isStarted]);
+
+  const handleClubSelection = (profile: typeof ALL_CLUB_PROFILES[0]) => {
+    setSelectedClubProfile(profile);
+    setSetupStep('manager');
+  };
+
+  const finalizeSetup = () => {
+    if (!selectedClubProfile || !managerName.trim()) return;
+
+    // Adjust squad quality based on tier
+    const adjustedSquad = INITIAL_SQUAD.map(p => {
+      const ratingModifier = selectedClubProfile.tier === 1 ? 0 : -10;
+      const newRating = Math.max(65, p.rating + ratingModifier);
+      return {
+        ...p,
+        rating: newRating,
+        marketValue: newRating * newRating * 12000
+      };
+    });
+
+    const initialObjectives: Objective[] = [
+      { id: '1', title: 'Board Vision', description: selectedClubProfile.tier === 1 ? 'Win the Title' : 'Secure Promotion', target: selectedClubProfile.tier === 1 ? 28 : 22, current: 0, reward: 50000000, completed: false, type: 'WINS' },
+      { id: '2', title: 'Youth Focus', description: 'Promote Academy Stars', target: 3, current: 0, reward: 10000000, completed: false, type: 'ACADEMY_PROMOTIONS' }
+    ];
+
+    setTeam(prev => ({
+      ...prev,
+      name: selectedClubProfile.name,
+      managerName: managerName,
+      funds: selectedClubProfile.budget,
+      tier: selectedClubProfile.tier,
+      players: adjustedSquad,
+      stadium: { ...prev.stadium, name: `${selectedClubProfile.name} Stadium`, capacity: selectedClubProfile.capacity },
+      objectives: initialObjectives,
+      tactics: { ...prev.tactics, startingXI: adjustedSquad.slice(0, 11).map(p => p.id) }
+    }));
+
+    setIsStarted(true);
+  };
 
   const refreshMarket = async () => {
     setLoadingMarket(true);
@@ -301,22 +357,105 @@ const App: React.FC = () => {
 
   if (!isStarted) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950">
-        <div className="max-w-md w-full text-center space-y-8 animate-in fade-in zoom-in duration-700">
-          <div className="w-24 h-24 bg-blue-600 rounded-[32px] mx-auto flex items-center justify-center shadow-2xl shadow-blue-500/20 rotate-3 transition-transform hover:rotate-0">
-            <i className="fas fa-futbol text-white text-5xl"></i>
-          </div>
-          <div className="space-y-3">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950 overflow-y-auto">
+        <div className="max-w-6xl w-full py-12 space-y-12 animate-in fade-in zoom-in duration-700">
+          
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 bg-blue-600 rounded-[22px] mx-auto flex items-center justify-center shadow-2xl shadow-blue-500/20 mb-4">
+              <i className="fas fa-futbol text-white text-3xl"></i>
+            </div>
             <h1 className="text-5xl font-black tracking-tighter text-white">GEMINI FM</h1>
-            <p className="text-slate-400 text-sm font-medium uppercase tracking-widest">A New Era of Football Management</p>
+            <p className="text-slate-400 text-xs font-black uppercase tracking-[0.3em]">Select Your Club & Manager</p>
           </div>
-          <button 
-            onClick={() => setIsStarted(true)} 
-            className="w-full py-5 bg-blue-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-blue-900/40 hover:bg-blue-500 transition-all active:scale-95 flex items-center justify-center gap-3"
-          >
-            START CAREER <i className="fas fa-arrow-right"></i>
-          </button>
-          <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">Powered by Google Gemini 3.0</p>
+
+          {setupStep === 'club' ? (
+            <div className="space-y-8">
+              <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-white/5 pb-6">
+                <div className="text-left">
+                  <h2 className="text-2xl font-black text-white uppercase tracking-tight">Browse Clubs</h2>
+                  <p className="text-slate-500 text-[10px] font-bold uppercase mt-1 tracking-widest">Choose from 40 professional teams</p>
+                </div>
+                <div className="flex bg-slate-900 p-1 rounded-2xl border border-white/5">
+                  <button 
+                    onClick={() => setSelectionTierFilter(1)}
+                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectionTierFilter === 1 ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Premier Division
+                  </button>
+                  <button 
+                    onClick={() => setSelectionTierFilter(2)}
+                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectionTierFilter === 2 ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Championship
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
+                {ALL_CLUB_PROFILES.filter(p => p.tier === selectionTierFilter).map(profile => (
+                  <button 
+                    key={profile.name}
+                    onClick={() => handleClubSelection(profile)}
+                    className="group relative bg-slate-900/40 hover:bg-slate-900 border border-white/5 hover:border-blue-500/50 p-6 rounded-[28px] transition-all text-left overflow-hidden active:scale-95"
+                  >
+                    <div className={`absolute top-0 right-0 w-24 h-24 ${profile.color} opacity-5 blur-3xl rounded-full -mr-12 -mt-12 group-hover:opacity-20 transition-opacity`}></div>
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className={`w-10 h-10 ${profile.color} rounded-xl flex items-center justify-center shadow-lg`}>
+                        <i className="fas fa-shield-halved text-white text-sm"></i>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-black text-base text-white tracking-tight truncate">{profile.name}</h3>
+                        <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Tier {profile.tier}</p>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-end border-t border-white/5 pt-4 mt-auto">
+                      <div>
+                        <p className="text-[8px] font-black text-slate-500 uppercase mb-0.5">Budget</p>
+                        <p className="text-sm font-black text-emerald-400">£{(profile.budget / 1000000).toFixed(0)}M</p>
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-black text-slate-500 uppercase mb-0.5 text-right">Stadium</p>
+                        <p className="text-[10px] font-black text-white text-right">{(profile.capacity/1000).toFixed(0)}k</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-md mx-auto space-y-8 bg-slate-900/40 p-10 rounded-[40px] border border-white/5 backdrop-blur-xl animate-in slide-in-from-bottom-4">
+              <button onClick={() => setSetupStep('club')} className="text-[10px] font-black text-slate-500 uppercase hover:text-white transition-colors">
+                <i className="fas fa-chevron-left mr-2"></i> Back to Clubs
+              </button>
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-black text-white uppercase tracking-tight">Manager Setup</h2>
+                  <p className="text-slate-500 text-xs font-bold uppercase mt-1">Accepting Position at {selectedClubProfile?.name}</p>
+                </div>
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Full Name</label>
+                  <input 
+                    type="text" 
+                    value={managerName}
+                    onChange={(e) => setManagerName(e.target.value)}
+                    placeholder="E.g. Pep Guardiola..."
+                    className="w-full bg-slate-950/50 border border-white/5 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <button 
+                  onClick={finalizeSetup}
+                  disabled={!managerName.trim()}
+                  className="w-full py-5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-900/40 transition-all active:scale-95"
+                >
+                  Confirm Contract
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="text-center opacity-30">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Football Simulation Engine v5.0 • © 2025</p>
+          </div>
         </div>
       </div>
     );
@@ -328,7 +467,7 @@ const App: React.FC = () => {
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div>
             <h1 className="text-lg font-bold tracking-tight">{team.name} <span className="text-blue-500 text-[10px] ml-1">v5</span></h1>
-            <p className="text-[10px] uppercase font-black text-slate-400">Security: {team.jobSecurity}%</p>
+            <p className="text-[10px] uppercase font-black text-slate-400">{team.managerName} • Security: {team.jobSecurity}%</p>
           </div>
           <div className="flex gap-4 items-center">
              <div className="text-right hidden sm:block">
@@ -383,22 +522,23 @@ const App: React.FC = () => {
             </div>
 
             <div className="bg-slate-900 rounded-[40px] p-8 border border-slate-800">
-               <h3 className="text-xs font-black uppercase text-slate-500 mb-6 tracking-widest">Club Summary</h3>
+               <h3 className="text-xs font-black uppercase text-slate-500 mb-6 tracking-widest">Active Board Objectives</h3>
                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-400">Active Squad</span>
-                    <span className="text-sm font-black">{team.players.length} Players</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-400">Matchday</span>
-                    <span className="text-sm font-black">{team.matchday} / {SEASON_LENGTH}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-400">Avg. Potential</span>
-                    <span className="text-sm font-black text-emerald-400">
-                      {(team.players.reduce((a, b) => a + b.potential, 0) / team.players.length).toFixed(1)}
-                    </span>
-                  </div>
+                  {team.objectives.map(obj => (
+                    <div key={obj.id} className="p-5 bg-slate-950 rounded-3xl border border-white/5">
+                        <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-black text-white text-sm uppercase">{obj.title}</h4>
+                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">£{(obj.reward/1000000).toFixed(0)}M Reward</span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium mb-4">{obj.description}</p>
+                        <div className="flex items-center gap-4">
+                            <div className="flex-1 h-2 bg-slate-900 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500" style={{ width: `${Math.min(100, (obj.current/obj.target)*100)}%` }}></div>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-300">{obj.current} / {obj.target}</span>
+                        </div>
+                    </div>
+                  ))}
                </div>
             </div>
           </div>
