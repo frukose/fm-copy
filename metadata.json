@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Football Manager",
+  "description": "An AI-powered football management simulator where you build your squad, set tactics, and simulate matches with deep narrative commentary powered by Gemini.",
+  "requestFramePermissions": []
+}
